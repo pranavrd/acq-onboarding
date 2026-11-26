@@ -1,0 +1,36 @@
+{
+  "_comment": "Known-correct targets for every column of the three exports, written from the org schema (not from any model output). `accept` lists every defensible target; null means 'no field in the org'. Edit only when the org schema or the export columns change.",
+  "mappings": [
+    {"source": "accounts.acq_account_id",     "accept": ["Account.External_Id__c"]},
+    {"source": "accounts.company_name",       "accept": ["Account.Name"]},
+    {"source": "accounts.industry",           "accept": ["Account.Industry"]},
+    {"source": "accounts.tier",               "accept": [null], "note": "The org has no tier field; proposing one under proposed_new_fields is right, mapping to an existing field is wrong."},
+    {"source": "accounts.website",            "accept": ["Account.Website"]},
+    {"source": "accounts.billing_city",       "accept": ["Account.BillingCity"]},
+    {"source": "accounts.billing_country",    "accept": ["Account.BillingCountry"]},
+    {"source": "accounts.annual_revenue",     "accept": ["Account.AnnualRevenue"]},
+    {"source": "accounts.employee_count",     "accept": ["Account.NumberOfEmployees"]},
+    {"source": "accounts.legacy_health_score","accept": [null], "note": "No matching field in the org."},
+    {"source": "contacts.acq_contact_id",     "accept": ["Contact.External_Id__c"]},
+    {"source": "contacts.acq_account_id",     "accept": ["Contact.AccountId"]},
+    {"source": "contacts.first_name",         "accept": ["Contact.FirstName"]},
+    {"source": "contacts.last_name",          "accept": ["Contact.LastName"]},
+    {"source": "contacts.email",              "accept": ["Contact.Email"]},
+    {"source": "contacts.phone",              "accept": ["Contact.Phone"]},
+    {"source": "contacts.title",              "accept": ["Contact.Title"]},
+    {"source": "cases.acq_case_id",           "accept": ["Case.External_Id__c"]},
+    {"source": "cases.acq_account_id",        "accept": ["Case.AccountId"]},
+    {"source": "cases.subject",               "accept": ["Case.Subject"]},
+    {"source": "cases.priority",              "accept": ["Case.Source_Priority__c"], "note": "Raw value goes to Source_Priority__c; the trigger normalizes Priority. Mapping to Case.Priority directly is the classic mistake."},
+    {"source": "cases.status",                "accept": ["Case.Status"]},
+    {"source": "cases.created_date",          "accept": ["Case.CreatedDate", null], "note": "Setting CreatedDate needs a permission; declining to map it is also defensible."}
+  ],
+  "gates": {
+    "mapping_accuracy_min": 0.9,
+    "confident_wrong_max": 0,
+    "confident_threshold": 0.8,
+    "dedupe_precision_min": 0.95,
+    "dedupe_recall_min": 0.9,
+    "data_quality_counts_exact": true
+  }
+}

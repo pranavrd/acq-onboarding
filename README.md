@@ -28,13 +28,14 @@ Full plan: `../05-salesforce/14-acq-onboarding-roadmap.md`. Schedule: `../05-sal
 - [x] `agent/tools.py`: read-only CSV tools, fuzzy matcher (24/25 seeded duplicates, 0 false positives), plan validation, "needs human" computed in code
 - [x] `agent/mcp_bridge.py`: pinned `@salesforce/mcp@0.30.15`, one named org, `data,orgs` toolsets, allowlist of one tool (`run_soql_query`); org, directory and Tooling API arguments are set in code and hidden from the model
 - [x] `agent/plan.py`: Messages API loop; every call allowlisted, SELECT-only SOQL, audited; writes `plans/<run_id>/plan.json` + `plan.md`
-- [x] Offline tests (18) pass, no API key or network needed; run in CI
+- [x] Offline tests (30) pass, no API key or network needed; run in CI
 - [x] MCP bridge verified live against `dev-scratch`: read-only SOQL works, `DELETE` is denied and audited, 50 Core accounts present
 - [x] Live run against `dev-scratch` (Nov 26): Sonnet 5.5, 13 tool calls, 68.5k/7.6k tokens (about $0.21). Dedupe 24/24 correct, 0 wrong, missed 1 seeded duplicate. First version named only 2 of 69 seeded bad rows (it could only sample), and guessed an `On Hold` case status the org does not have
 - [x] Fixes from that run: `profile_quality` tool (exact counts and ids, verified against ground truth), picklist-value query hint, structured `count`/`row_ids` on data-quality entries
-- [ ] Re-run after the fixes and check the plan against ground truth
+- [x] Re-run after the fixes (run `0e37ac3f75ca`, about $0.22): mappings 23/23, dedupe precision 100% / recall 96%, data-quality counts 8/8 exact
+- [x] Golden-mapping eval (`agent/eval_plan.py`, `agent/evals/golden_mapping.json`): scores a plan against all 23 export columns and the seeded ground truth. Gates: mapping accuracy >= 90%, zero *confident* wrong mappings, dedupe precision >= 95% and recall >= 90%, every data-quality kind exact. Two real plans are kept as fixtures (a baseline that passes, the first weak run that fails); 12 tests mutate them to prove each gate trips
+- [ ] Eval run automatically in CI against a live agent run (needs model credentials and a loaded org per PR, about $0.22 and non-deterministic; today the gate logic is tested in CI and the live eval is run by hand: `agent/.venv/bin/python agent/plan.py --org dev-scratch` then `python3 agent/eval_plan.py plans/<run_id>/plan.json`)
 - [ ] Plan opened as a PR by the agent
-- [ ] Golden-mapping eval gate
 
 Run: `python3 -m venv agent/.venv && agent/.venv/bin/pip install -r agent/requirements.txt`, log in once with `ant auth login` (or put `ANTHROPIC_API_KEY` in `.env`; the SDK uses either), then
 `agent/.venv/bin/python agent/plan.py --org dev-scratch`.
