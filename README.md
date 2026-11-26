@@ -10,15 +10,21 @@ Full plan: `../05-salesforce/14-acq-onboarding-roadmap.md`. Schedule: `../05-sal
 - [x] Permission set `Acquisition_Onboarding` (field access only)
 - [x] `CasePriorityNormalizer`, `CaseSourceTrigger`, tests
 - [x] Deployed to a scratch org; 6/6 tests pass; org-wide coverage 100% (Nov 24)
-- [ ] Second deploy reports no changes (idempotency not yet checked)
+- [x] Second deploy reports "No changes to deploy" (idempotent, Nov 25)
 
-## Day 2
-- [x] `scripts/compliance_gate.py` (tested locally against good and bad inputs)
-- [x] `scripts/check_coverage.py`
-- [x] `.github/workflows/pr.yml`, `deploy.yml` (written, never run; `sf` flags unverified against current docs)
-- [ ] JWT certificate, connected app in both orgs, GitHub secrets
-- [ ] Repo on GitHub, branch protection on `main`
-- [ ] Clean PR goes green and deploys; `ModifyAllData` PR goes red
+## Day 2 (Nov 25)
+- [x] `scripts/compliance_gate.py` (tested locally and in CI)
+- [x] `scripts/check_coverage.py` (tested in CI)
+- [x] `.github/workflows/pr.yml`: JWT login, scratch org, deploy, Apex tests, coverage gate, Code Analyzer all green in CI
+- [x] `.github/workflows/deploy.yml`: JWT login to prod, check-only validate, quick deploy green in CI
+- [x] JWT via External Client Apps in both orgs, GitHub secrets set
+- [x] Repo on GitHub; ruleset on `main` requires a PR and the `validate` check
+- [x] Clean PR went green and merged
+- [x] `ModifyAllData` PR failed at the compliance gate, merge blocked, then closed
+
+## Gotchas hit (good interview material)
+- `sf` CLI crashed on Node 20.20; fixed by using Node 22 in CI.
+- Dev Hub authenticated through an External Client App can't be replicated by scratch org signup; CI sets `SF_SCRATCH_SIGNUP_CONNECTED_APP=PlatformCLI` and a callback URL for creation only.
+- Classic branch protection API returns 404 for rulesets; use `/rules/branches/main`.
 
 Only claim what is checked off.
-
