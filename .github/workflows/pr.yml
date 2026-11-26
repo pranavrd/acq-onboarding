@@ -26,6 +26,10 @@ jobs:
       - name: Compliance gate
         run: python scripts/compliance_gate.py --diff origin/${{ github.base_ref }}...HEAD
 
+      - name: Agent tests (offline, no API key)
+        run: |
+          for t in agent/tests/test_*.py; do python "$t"; done
+
       - name: Authenticate to Dev Hub (JWT)
         env:
           SF_JWT_KEY: ${{ secrets.SF_JWT_KEY }}

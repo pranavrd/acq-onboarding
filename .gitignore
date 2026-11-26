@@ -16,3 +16,7 @@ __pycache__/
 agent/data/out/
 
 .DS_Store
+
+agent/data/truth/
+
+agent/.venv/
