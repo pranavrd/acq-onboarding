@@ -52,7 +52,7 @@ def build_body(plan: dict, run_id: str, eval_summary: str | None = None) -> str:
     if len(nh) > 20:
         lines.append(f"- ... and {len(nh) - 20} more in `plan.json`")
     lines += ["", "Full plan: `plans/%s/plan.md`." % run_id, "",
-              "**Merging this PR approves the plan.** The load step refuses to run unless the plan is on `main`.",
+              "**Merging this PR approves the plan.** (The load step that will require an approved plan on `main` is planned, not built yet.)",
               "", "🤖 Opened by the planning agent (`agent/open_pr.py`). It cannot merge."]
     return "\n".join(lines)
 
@@ -109,7 +109,15 @@ def main():
     if len(sys.argv) != 2:
         sys.exit("usage: python agent/open_pr.py plans/<run_id>")
     root = Path(__file__).resolve().parents[1]
-    print(open_plan_pr(sys.argv[1], root))
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from eval_plan import summarize
+
+    plan = json.loads((Path(sys.argv[1]) / "plan.json").read_text())
+    text, passed = summarize(plan, str(root / "agent" / "data" / "truth" / "truth.json"))
+    print(text)
+    if not passed:
+        sys.exit("plan fails the eval; not opening a PR. Use plan.py --open-pr-anyway to override.")
+    print(open_plan_pr(sys.argv[1], root, eval_summary=text))
 
 
 if __name__ == "__main__":
