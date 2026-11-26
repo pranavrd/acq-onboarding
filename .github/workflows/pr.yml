@@ -1,0 +1,64 @@
+name: PR checks
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Salesforce CLI
+        run: npm install --global @salesforce/cli
+
+      - name: Compliance gate (runs first: cheapest, no org needed)
+        run: python scripts/compliance_gate.py --diff origin/${{ github.base_ref }}...HEAD
+
+      - name: Authenticate to Dev Hub (JWT)
+        env:
+          SF_JWT_KEY: ${{ secrets.SF_JWT_KEY }}
+        run: |
+          echo "$SF_JWT_KEY" | base64 --decode > server.key
+          sf org login jwt \
+            --client-id "${{ secrets.SF_CLIENT_ID_DEVHUB }}" \
+            --jwt-key-file server.key \
+            --username "${{ secrets.SF_USERNAME_DEVHUB }}" \
+            --set-default-dev-hub --alias devhub
+          rm -f server.key
+
+      - name: Create scratch org
+        run: |
+          sf org create scratch --definition-file config/project-scratch-def.json \
+            --alias ci-scratch --duration-days 1 --target-dev-hub devhub --wait 15
+
+      - name: Deploy
+        run: sf project deploy start --target-org ci-scratch
+
+      - name: Apex tests
+        run: |
+          sf apex run test --target-org ci-scratch --code-coverage \
+            --result-format json --output-dir test-results --wait 20
+
+      - name: Coverage gate (85%)
+        run: python scripts/check_coverage.py test-results 85
+
+      - name: Code Analyzer
+        run: |
+          sf plugins install code-analyzer
+          sf code-analyzer run --workspace force-app --severity-threshold 2
+
+      - name: Delete scratch org
+        if: always()
+        run: sf org delete scratch --target-org ci-scratch --no-prompt || true

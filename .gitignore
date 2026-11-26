@@ -1,0 +1,18 @@
+# Secrets: never commit
+server.key
+server.crt
+*.key
+.env
+
+# Salesforce
+.sfdx/
+.sf/
+node_modules/
+test-results/
+
+# Python / agent
+__pycache__/
+*.sqlite
+agent/data/out/
+
+.DS_Store
