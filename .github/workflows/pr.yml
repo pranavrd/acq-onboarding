@@ -23,7 +23,7 @@ jobs:
       - name: Install Salesforce CLI
         run: npm install --global @salesforce/cli
 
-      - name: Compliance gate (runs first: cheapest, no org needed)
+      - name: Compliance gate
         run: python scripts/compliance_gate.py --diff origin/${{ github.base_ref }}...HEAD
 
       - name: Authenticate to Dev Hub (JWT)
