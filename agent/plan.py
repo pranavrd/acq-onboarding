@@ -165,6 +165,28 @@ def write_outputs(plan: dict, run_id: str, meta: dict, out_dir: str = "plans") -
     return d
 
 
+def propose(run_dir, audit, truth_path, repo_root, allow_failed_eval=False, opener=None):
+    """Open a PR for the plan, but only if it passes the eval. Returns (status, detail).
+
+    A plan that fails the eval is not put in front of a human for approval unless asked for explicitly.
+    """
+    from eval_plan import summarize
+    from open_pr import OpenPrError, open_plan_pr
+
+    opener = opener or open_plan_pr
+    text, passed = summarize(json.loads((Path(run_dir) / "plan.json").read_text()), truth_path)
+    if not passed and not allow_failed_eval:
+        audit.record("done", "open_pr", {"run_dir": str(run_dir)}, text[-300:], "not opened: eval failed")
+        return "blocked", text
+    try:
+        url = opener(run_dir, repo_root, eval_summary=text)
+    except OpenPrError as e:
+        audit.record("done", "open_pr", {"run_dir": str(run_dir)}, str(e), "error")
+        return "error", str(e)
+    audit.record("done", "open_pr", {"run_dir": str(run_dir)}, url, "pr opened")
+    return "opened", url
+
+
 async def main_async(args):
     from anthropic import AsyncAnthropic
     from mcp_bridge import READ_ONLY_TOOLS, dx_mcp
@@ -187,6 +209,13 @@ async def main_async(args):
     d = write_outputs(dispatch.plan, audit.run_id, meta, args.plans_dir)
     audit.record("done", "write_plan", {"dir": str(d)}, f"needs_human={len(dispatch.plan['needs_human'])}", "plan written")
     print(f"wrote {d}/plan.json and plan.md | needs human: {len(dispatch.plan['needs_human'])} | tokens {usage['input_tokens']}/{usage['output_tokens']}")
+    if args.open_pr:
+        status, detail = propose(d, audit, args.truth, Path(__file__).resolve().parents[1], args.open_pr_anyway)
+        if status == "opened":
+            print(f"opened PR: {detail}")
+        else:
+            print(detail)
+            sys.exit(f"PR not opened ({status}); the plan is still at {d}")
 
 
 def main():
@@ -203,6 +232,9 @@ def main():
     ap.add_argument("--no-fallbacks", action="store_true")
     ap.add_argument("--audit-db", default="agent/audit.sqlite")
     ap.add_argument("--plans-dir", default="plans")
+    ap.add_argument("--open-pr", action="store_true", help="propose the plan as a PR (only if it passes the eval)")
+    ap.add_argument("--open-pr-anyway", action="store_true", help="open the PR even if the eval fails")
+    ap.add_argument("--truth", default="agent/data/truth/truth.json", help="ground truth for the eval, if present")
     asyncio.run(main_async(ap.parse_args()))
 
 
