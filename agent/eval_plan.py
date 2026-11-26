@@ -129,6 +129,22 @@ def print_report(report):
         print("  gate failed:", f)
 
 
+def summarize(plan, truth_path=None):
+    """(report text, passed). Without a ground-truth file only the mapping gates run, and the text says so."""
+    import contextlib
+    import io
+
+    truth = json.loads(Path(truth_path).read_text()) if truth_path and Path(truth_path).exists() else None
+    report = evaluate(plan, load_golden(), truth)
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        print_report(report)
+    text = buf.getvalue()
+    if truth is None:
+        text = "(mappings only: no ground-truth file, dedupe and data-quality gates not run)\n" + text
+    return text, not report["failures"]
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("plan")
