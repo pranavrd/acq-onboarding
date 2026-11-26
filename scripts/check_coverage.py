@@ -15,8 +15,11 @@ def find_summary(directory: Path):
             data = json.loads(f.read_text())
         except json.JSONDecodeError:
             continue
-        summary = data.get("summary") or data.get("result", {}).get("summary")
-        if summary and "orgWideCoverage" in summary:
+        if not isinstance(data, dict):
+            continue  # e.g. the per-class coverage file is a list
+        result = data.get("result")
+        summary = data.get("summary") or (result.get("summary") if isinstance(result, dict) else None)
+        if isinstance(summary, dict) and "orgWideCoverage" in summary:
             return summary
     return None
 
@@ -25,7 +28,7 @@ def main() -> int:
     directory, threshold = Path(sys.argv[1]), float(sys.argv[2])
     summary = find_summary(directory)
     if summary is None:
-        print(f"No orgWideCoverage found in {directory}")
+        print(f"No orgWideCoverage found in {directory}. Files seen: {sorted(p.name for p in directory.glob('*'))}")
         return 1
     coverage = float(str(summary["orgWideCoverage"]).rstrip("%"))
     print(f"Org-wide coverage: {coverage}% (required {threshold}%)")

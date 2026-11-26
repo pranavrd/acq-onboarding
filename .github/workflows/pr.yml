@@ -39,6 +39,11 @@ jobs:
           rm -f server.key
 
       - name: Create scratch org
+        env:
+          # Dev Hub is authenticated through an External Client App, which the signup
+          # service can't replicate into the scratch org. Use the built-in app for signup only.
+          SF_SCRATCH_SIGNUP_CONNECTED_APP: PlatformCLI
+          SF_SCRATCH_SIGNUP_CALLBACK_URL: http://localhost:1717/OauthRedirect
         run: |
           sf org create scratch --definition-file config/project-scratch-def.json \
             --alias ci-scratch --duration-days 1 --target-dev-hub devhub --wait 15
