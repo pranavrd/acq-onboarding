@@ -1,0 +1,510 @@
+{
+  "run_id": "6a34d427a9a4",
+  "meta": {
+    "model": "claude-sonnet-5-5",
+    "tool_calls": 16,
+    "input_tokens": 76742,
+    "output_tokens": 8288,
+    "turns": 4
+  },
+  "mappings": [
+    {
+      "source": "accounts.acq_account_id",
+      "target": "Account.External_Id__c",
+      "transform": "none (Source_System__c='AcquiredCo' set as constant)",
+      "confidence": 0.95,
+      "reasoning": "External ID field for upsert; Source_System__c picklist has AcquiredCo."
+    },
+    {
+      "source": "accounts.company_name",
+      "target": "Account.Name",
+      "transform": "trim, collapse double spaces; blank rows rejected",
+      "confidence": 0.97,
+      "reasoning": "Direct name mapping."
+    },
+    {
+      "source": "accounts.industry",
+      "target": "Account.Industry",
+      "transform": "none",
+      "confidence": 0.93,
+      "reasoning": "All 8 distinct values (Media, Finance, Healthcare, Manufacturing, Energy, Retail, Transportation, Technology) verified present in the Industry picklist."
+    },
+    {
+      "source": "accounts.tier",
+      "target": "Account.Customer_Tier__c",
+      "transform": "none; keep raw value",
+      "confidence": 0.95,
+      "reasoning": "Customer_Tier__c holds raw acquired tier (Text 40). Values are messy (T2, Tier 1, VIP, strategic...) so not normalized."
+    },
+    {
+      "source": "accounts.website",
+      "target": "Account.Website",
+      "transform": "none",
+      "confidence": 0.95,
+      "reasoning": "URL field."
+    },
+    {
+      "source": "accounts.billing_city",
+      "target": "Account.BillingCity",
+      "transform": "none",
+      "confidence": 0.93,
+      "reasoning": "Standard billing address component (BillingAddress compound field exists)."
+    },
+    {
+      "source": "accounts.billing_country",
+      "target": "Account.BillingCountry",
+      "transform": "none (ISO 2-letter codes; check country/state picklist settings)",
+      "confidence": 0.85,
+      "reasoning": "Standard component; codes like US/AU/SG/IN may need validation if state/country picklists are enabled."
+    },
+    {
+      "source": "accounts.annual_revenue",
+      "target": "Account.AnnualRevenue",
+      "transform": "cast to number; non-positive/non-numeric set null",
+      "confidence": 0.92,
+      "reasoning": "Currency field."
+    },
+    {
+      "source": "accounts.employee_count",
+      "target": "Account.NumberOfEmployees",
+      "transform": "cast to integer",
+      "confidence": 0.93,
+      "reasoning": "Number(8,0); values observed fit."
+    },
+    {
+      "source": "accounts.legacy_health_score",
+      "target": null,
+      "transform": "none",
+      "confidence": 0.8,
+      "reasoning": "No field in org for a legacy health score; not loaded unless a new field is approved."
+    },
+    {
+      "source": "contacts.acq_contact_id",
+      "target": "Contact.External_Id__c",
+      "transform": "none; Source_System__c='AcquiredCo'",
+      "confidence": 0.93,
+      "reasoning": "Org has External_Id__c on Contact per instructions (Contact fields not queried directly)."
+    },
+    {
+      "source": "contacts.acq_account_id",
+      "target": "Contact.AccountId",
+      "transform": "resolve via Account.External_Id__c (or matched Core account after dedupe)",
+      "confidence": 0.9,
+      "reasoning": "Lookup by external id; orphans cannot resolve."
+    },
+    {
+      "source": "contacts.first_name",
+      "target": "Contact.FirstName",
+      "transform": "none",
+      "confidence": 0.96,
+      "reasoning": "Standard field."
+    },
+    {
+      "source": "contacts.last_name",
+      "target": "Contact.LastName",
+      "transform": "none",
+      "confidence": 0.96,
+      "reasoning": "Standard field."
+    },
+    {
+      "source": "contacts.email",
+      "target": "Contact.Email",
+      "transform": "none; blanks left null",
+      "confidence": 0.95,
+      "reasoning": "Standard field."
+    },
+    {
+      "source": "contacts.phone",
+      "target": "Contact.Phone",
+      "transform": "none",
+      "confidence": 0.93,
+      "reasoning": "Standard field."
+    },
+    {
+      "source": "contacts.title",
+      "target": "Contact.Title",
+      "transform": "none",
+      "confidence": 0.95,
+      "reasoning": "Standard field."
+    },
+    {
+      "source": "cases.acq_case_id",
+      "target": "Case.External_Id__c",
+      "transform": "none; Source_System__c='AcquiredCo'",
+      "confidence": 0.95,
+      "reasoning": "External ID on Case verified."
+    },
+    {
+      "source": "cases.acq_account_id",
+      "target": "Case.AccountId",
+      "transform": "resolve via Account.External_Id__c (or matched Core account)",
+      "confidence": 0.9,
+      "reasoning": "Lookup resolution."
+    },
+    {
+      "source": "cases.subject",
+      "target": "Case.Subject",
+      "transform": "none; blank rows need a decision",
+      "confidence": 0.95,
+      "reasoning": "Direct."
+    },
+    {
+      "source": "cases.priority",
+      "target": "Case.Source_Priority__c",
+      "transform": "copy raw value; trigger normalizes to High/Medium/Low, unknown -> Medium and flagged",
+      "confidence": 0.9,
+      "reasoning": "Per instructions trigger normalizes from Source_Priority__c; do not write Priority directly."
+    },
+    {
+      "source": "cases.status",
+      "target": "Case.Status",
+      "transform": "open->New, in_progress->Working, escalated->Escalated, pending_customer->NEEDS DECISION (no matching value; Working is a tentative choice)",
+      "confidence": 0.6,
+      "reasoning": "Case Status picklist verified: New, Escalated, Working, Closed. pending_customer (191 rows) has no clean equivalent, so overall confidence is low."
+    },
+    {
+      "source": "cases.created_date",
+      "target": "Case.CreatedDate",
+      "transform": "date -> datetime; requires 'Set Audit Fields' permission on load",
+      "confidence": 0.65,
+      "reasoning": "CreatedDate is only writable with audit-field permission; otherwise it would need a custom field. Dates are in the future (2026), so check them too."
+    }
+  ],
+  "dedupe_matches": [
+    {
+      "acq_account_id": "ACQ-A-00019",
+      "existing_external_id": "CORE-00031",
+      "confidence": 0.95,
+      "reasoning": "'The Eagle Foods LLC.' vs 'Eagle Foods LLC': only a prefix and punctuation differ."
+    },
+    {
+      "acq_account_id": "ACQ-A-00006",
+      "existing_external_id": "CORE-00047",
+      "confidence": 0.97,
+      "reasoning": "Double space only."
+    },
+    {
+      "acq_account_id": "ACQ-A-00013",
+      "existing_external_id": "CORE-00036",
+      "confidence": 0.97,
+      "reasoning": "Double space only."
+    },
+    {
+      "acq_account_id": "ACQ-A-00014",
+      "existing_external_id": "CORE-00005",
+      "confidence": 0.97,
+      "reasoning": "Double space only."
+    },
+    {
+      "acq_account_id": "ACQ-A-00017",
+      "existing_external_id": "CORE-00027",
+      "confidence": 0.95,
+      "reasoning": "'The' prefix and period."
+    },
+    {
+      "acq_account_id": "ACQ-A-00015",
+      "existing_external_id": "CORE-00046",
+      "confidence": 0.93,
+      "reasoning": "Uppercase with duplicated ', INC.' suffix."
+    },
+    {
+      "acq_account_id": "ACQ-A-00007",
+      "existing_external_id": "CORE-00017",
+      "confidence": 0.93,
+      "reasoning": "Uppercase plus ', INC.' suffix."
+    },
+    {
+      "acq_account_id": "ACQ-A-00002",
+      "existing_external_id": "CORE-00048",
+      "confidence": 0.93,
+      "reasoning": "Uppercase plus ', INC.' suffix."
+    },
+    {
+      "acq_account_id": "ACQ-A-00011",
+      "existing_external_id": "CORE-00016",
+      "confidence": 0.92,
+      "reasoning": "CORPORATION vs Corp, uppercase, extra INC."
+    },
+    {
+      "acq_account_id": "ACQ-A-00024",
+      "existing_external_id": "CORE-00023",
+      "confidence": 0.93,
+      "reasoning": "Uppercase plus ', INC.' suffix."
+    },
+    {
+      "acq_account_id": "ACQ-A-00010",
+      "existing_external_id": "CORE-00011",
+      "confidence": 0.97,
+      "reasoning": "Double space only."
+    },
+    {
+      "acq_account_id": "ACQ-A-00020",
+      "existing_external_id": "CORE-00010",
+      "confidence": 0.92,
+      "reasoning": "CORPORATION vs Corp, uppercase, extra INC."
+    },
+    {
+      "acq_account_id": "ACQ-A-00003",
+      "existing_external_id": "CORE-00007",
+      "confidence": 0.93,
+      "reasoning": "Uppercase plus INC suffix."
+    },
+    {
+      "acq_account_id": "ACQ-A-00005",
+      "existing_external_id": "CORE-00041",
+      "confidence": 0.9,
+      "reasoning": "Transposition typo 'aMterials'."
+    },
+    {
+      "acq_account_id": "ACQ-A-00022",
+      "existing_external_id": "CORE-00008",
+      "confidence": 0.9,
+      "reasoning": "Transposition typo 'nAalytics'."
+    },
+    {
+      "acq_account_id": "ACQ-A-00009",
+      "existing_external_id": "CORE-00006",
+      "confidence": 0.9,
+      "reasoning": "Typo with space in 'Pionee rSystems'."
+    },
+    {
+      "acq_account_id": "ACQ-A-00016",
+      "existing_external_id": "CORE-00001",
+      "confidence": 0.9,
+      "reasoning": "Transposition typo 'Quratz'."
+    },
+    {
+      "acq_account_id": "ACQ-A-00023",
+      "existing_external_id": "CORE-00032",
+      "confidence": 0.9,
+      "reasoning": "Transposition typo 'Xneon'."
+    },
+    {
+      "acq_account_id": "ACQ-A-00004",
+      "existing_external_id": "CORE-00014",
+      "confidence": 0.9,
+      "reasoning": "Transposition typo 'Faclon'."
+    },
+    {
+      "acq_account_id": "ACQ-A-00025",
+      "existing_external_id": "CORE-00028",
+      "confidence": 0.9,
+      "reasoning": "Transposition typo 'Garnite'."
+    },
+    {
+      "acq_account_id": "ACQ-A-00001",
+      "existing_external_id": "CORE-00040",
+      "confidence": 0.88,
+      "reasoning": "Transposition typo 'Yodner'."
+    },
+    {
+      "acq_account_id": "ACQ-A-00012",
+      "existing_external_id": "CORE-00012",
+      "confidence": 0.88,
+      "reasoning": "Typo 'Reatil'. This acq id is also duplicated within accounts.csv, so confirm."
+    },
+    {
+      "acq_account_id": "ACQ-A-00008",
+      "existing_external_id": "CORE-00043",
+      "confidence": 0.9,
+      "reasoning": "Transposition typo 'Keystnoe'."
+    },
+    {
+      "acq_account_id": "ACQ-A-00018",
+      "existing_external_id": "CORE-00029",
+      "confidence": 0.88,
+      "reasoning": "Transposition typo 'Enregy'."
+    }
+  ],
+  "proposed_new_fields": [
+    {
+      "object": "Account",
+      "field_api_name": "Legacy_Health_Score__c",
+      "type": "Number(3,0)",
+      "reason": "Acquired company's health score (0-100) has no home in the org. It may be useful for retention and churn analysis, but business value needs confirmation."
+    }
+  ],
+  "data_quality_issues": [
+    {
+      "file": "accounts.csv",
+      "kind": "blank company_name",
+      "count": 5,
+      "row_ids": [
+        "ACQ-A-00297",
+        "ACQ-A-00264",
+        "ACQ-A-00287",
+        "ACQ-A-00172",
+        "ACQ-A-00452"
+      ],
+      "action": "reject"
+    },
+    {
+      "file": "accounts.csv",
+      "kind": "duplicate acq_account_id (count = distinct ids that appear more than once)",
+      "count": 5,
+      "row_ids": [
+        "ACQ-A-00186",
+        "ACQ-A-00030",
+        "ACQ-A-00102",
+        "ACQ-A-00195",
+        "ACQ-A-00012"
+      ],
+      "action": "needs_human"
+    },
+    {
+      "file": "accounts.csv",
+      "kind": "annual_revenue is not a positive number",
+      "count": 5,
+      "row_ids": [
+        "ACQ-A-00100",
+        "ACQ-A-00096",
+        "ACQ-A-00056",
+        "ACQ-A-00161",
+        "ACQ-A-00091"
+      ],
+      "action": "fix"
+    },
+    {
+      "file": "accounts.csv",
+      "kind": "blank tier",
+      "count": 56,
+      "row_ids": [
+        "ACQ-A-00492",
+        "ACQ-A-00100",
+        "ACQ-A-00310",
+        "ACQ-A-00241",
+        "ACQ-A-00166",
+        "ACQ-A-00309",
+        "ACQ-A-00175",
+        "ACQ-A-00066",
+        "ACQ-A-00213",
+        "ACQ-A-00101"
+      ],
+      "action": "fix"
+    },
+    {
+      "file": "contacts.csv",
+      "kind": "blank email",
+      "count": 15,
+      "row_ids": [
+        "ACQ-C-00008",
+        "ACQ-C-00041",
+        "ACQ-C-00094",
+        "ACQ-C-00253",
+        "ACQ-C-00283",
+        "ACQ-C-00337",
+        "ACQ-C-00457",
+        "ACQ-C-00474",
+        "ACQ-C-00503",
+        "ACQ-C-00515"
+      ],
+      "action": "fix"
+    },
+    {
+      "file": "contacts.csv",
+      "kind": "orphaned acq_account_id (no such account in accounts.csv)",
+      "count": 15,
+      "row_ids": [
+        "ACQ-C-00066",
+        "ACQ-C-00147",
+        "ACQ-C-00207",
+        "ACQ-C-00295",
+        "ACQ-C-00409",
+        "ACQ-C-00470",
+        "ACQ-C-00472",
+        "ACQ-C-00539",
+        "ACQ-C-00590",
+        "ACQ-C-00734"
+      ],
+      "action": "reject"
+    },
+    {
+      "file": "cases.csv",
+      "kind": "blank subject",
+      "count": 8,
+      "row_ids": [
+        "ACQ-K-00067",
+        "ACQ-K-00317",
+        "ACQ-K-00384",
+        "ACQ-K-00389",
+        "ACQ-K-00494",
+        "ACQ-K-00514",
+        "ACQ-K-00660",
+        "ACQ-K-00664"
+      ],
+      "action": "needs_human"
+    },
+    {
+      "file": "cases.csv",
+      "kind": "orphaned acq_account_id (no such account in accounts.csv)",
+      "count": 8,
+      "row_ids": [
+        "ACQ-K-00231",
+        "ACQ-K-00353",
+        "ACQ-K-00496",
+        "ACQ-K-00497",
+        "ACQ-K-00536",
+        "ACQ-K-00538",
+        "ACQ-K-00602",
+        "ACQ-K-00685"
+      ],
+      "action": "reject"
+    },
+    {
+      "file": "cases.csv",
+      "kind": "unrecognized priority (the Apex normalizer defaults these to Medium)",
+      "count": 8,
+      "row_ids": [
+        "ACQ-K-00015",
+        "ACQ-K-00160",
+        "ACQ-K-00174",
+        "ACQ-K-00175",
+        "ACQ-K-00180",
+        "ACQ-K-00322",
+        "ACQ-K-00351",
+        "ACQ-K-00388"
+      ],
+      "action": "needs_human"
+    }
+  ],
+  "notes": "Verified against the org: Case Status picklist (New, Escalated, Working, Closed), Industry (all 8 source values valid), Source_System__c (Core, AcquiredCo). The 24 fuzzy matches against the 50 Core accounts all look like real duplicates (case, suffix, whitespace or transposition differences). I did not find lookalikes, such as Redwood Labs vs Redwood Analytics, among the candidates. Matched accounts should be merged or linked to the Core record rather than created again, and their contacts and cases should be re-parented to the Core account. Open decisions: (1) cases with status pending_customer (191) have no matching Case Status value. Options are map to Working or add a picklist value. (2) Priority values banana, tbd, ???, ASAP!! default to Medium and are flagged for review. Raw values are kept in Source_Priority__c. (3) Case created_date values are in 2026 and need a check, and loading them needs audit-field permission. (4) Duplicate acq_account_ids in accounts.csv need a survivor rule. (5) Contact and Case fields beyond Case were not described directly. I assumed the standard fields and the External_Id__c fields that the instructions say exist on Contact. Blank tier rows load with Customer_Tier__c empty. Blank email contacts load without an email.",
+  "needs_human": [
+    {
+      "kind": "mapping",
+      "ref": "accounts.legacy_health_score",
+      "confidence": 0.8,
+      "why": "no target field"
+    },
+    {
+      "kind": "mapping",
+      "ref": "cases.status",
+      "confidence": 0.6,
+      "why": "low confidence"
+    },
+    {
+      "kind": "mapping",
+      "ref": "cases.created_date",
+      "confidence": 0.65,
+      "why": "low confidence"
+    },
+    {
+      "kind": "data_quality",
+      "ref": "accounts.csv (5 rows: ACQ-A-00186, ACQ-A-00030, ACQ-A-00102, ACQ-A-00195, ACQ-A-00012)",
+      "confidence": null,
+      "why": "duplicate acq_account_id (count = distinct ids that appear more than once)"
+    },
+    {
+      "kind": "data_quality",
+      "ref": "cases.csv (8 rows: ACQ-K-00067, ACQ-K-00317, ACQ-K-00384, ACQ-K-00389, ACQ-K-00494, ACQ-K-00514, ACQ-K-00660, ACQ-K-00664)",
+      "confidence": null,
+      "why": "blank subject"
+    },
+    {
+      "kind": "data_quality",
+      "ref": "cases.csv (8 rows: ACQ-K-00015, ACQ-K-00160, ACQ-K-00174, ACQ-K-00175, ACQ-K-00180, ACQ-K-00322, ACQ-K-00351, ACQ-K-00388)",
+      "confidence": null,
+      "why": "unrecognized priority (the Apex normalizer defaults these to Medium)"
+    }
+  ],
+  "low_confidence_threshold": 0.8
+}
