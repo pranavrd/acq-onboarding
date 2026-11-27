@@ -3,6 +3,11 @@
     <description>Field access for acquisition onboarding. Field-level security on the new fields only; no system permissions.</description>
     <fieldPermissions>
         <editable>true</editable>
+        <field>Account.Customer_Tier__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <editable>true</editable>
         <field>Account.External_Id__c</field>
         <readable>true</readable>
     </fieldPermissions>
