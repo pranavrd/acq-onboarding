@@ -20,3 +20,4 @@ agent/data/out/
 agent/data/truth/
 
 agent/.venv/
+agent/data/load/

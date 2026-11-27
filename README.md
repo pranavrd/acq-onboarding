@@ -28,7 +28,7 @@ Full plan: `../05-salesforce/14-acq-onboarding-roadmap.md`. Schedule: `../05-sal
 - [x] `agent/tools.py`: read-only CSV tools, fuzzy matcher (24/25 seeded duplicates, 0 false positives), plan validation, "needs human" computed in code
 - [x] `agent/mcp_bridge.py`: pinned `@salesforce/mcp@0.30.15`, one named org, `data,orgs` toolsets, allowlist of one tool (`run_soql_query`); org, directory and Tooling API arguments are set in code and hidden from the model
 - [x] `agent/plan.py`: Messages API loop; every call allowlisted, SELECT-only SOQL, audited; writes `plans/<run_id>/plan.json` + `plan.md`
-- [x] Offline tests (42) pass, no API key or network needed; run in CI
+- [x] Offline tests pass (count under Day 4), no API key or network needed; run in CI
 - [x] MCP bridge verified live against `dev-scratch`: read-only SOQL works, `DELETE` is denied and audited, 50 Core accounts present
 - [x] Live run against `dev-scratch` (Nov 26): Sonnet 5.5, 13 tool calls, 68.5k/7.6k tokens (about $0.21). Dedupe 24/24 correct, 0 wrong, missed 1 seeded duplicate. First version named only 2 of 69 seeded bad rows (it could only sample), and guessed an `On Hold` case status the org does not have
 - [x] Fixes from that run: `profile_quality` tool (exact counts and ids, verified against ground truth), picklist-value query hint, structured `count`/`row_ids` on data-quality entries
@@ -41,6 +41,17 @@ Full plan: `../05-salesforce/14-acq-onboarding-roadmap.md`. Schedule: `../05-sal
 
 Run: `python3 -m venv agent/.venv && agent/.venv/bin/pip install -r agent/requirements.txt`, log in once with `ant auth login` (or put `ANTHROPIC_API_KEY` in `.env`; the SDK uses either), then
 `agent/.venv/bin/python agent/plan.py --org dev-scratch`.
+
+## Day 4 (Nov 27): the load step
+Decisions are in `DECISIONS.md`. Re-planned after `Customer_Tier__c` existed (new plan `6a34d427a9a4`, PR #8, eval PASS, tier -> `Customer_Tier__c` at 0.95); the old plan dropped tier.
+- [x] `agent/load_rules.py`: pure transform. Fail-closed: a plan that maps a column to a field the executor has no rule for is refused. Every row ends up loaded, merged into Core, or rejected with a reason; no loaded row can point at a rejected parent (tested against the seeded data)
+- [x] `agent/execute.py`: dry run by default, `--apply` to write. Gates before any write: plan is on `origin/main` and equals the local copy; org is a scratch org (prod and the Dev Hub refused, verified against the real org list); every target field exists and is visible (verified against the real `dev-scratch`). Parents first, a failed parent stops the children, every step is audited, a reconciliation report is written
+- [x] Reconciliation verifies against the org itself, not just the job results: counts per object tagged `AcquiredCo`, children re-parented to Core, no `AcquiredCo` case without a Priority (proves the trigger fired)
+- [x] 69 offline tests, including a stateful fake Salesforce: apply, second run creates 0 and updates all, gates refuse before any write, failed parents stop the run, a trigger that did not fire is caught
+- [ ] Dry run against the real plan (blocked until PR #8 merges; the gate correctly refuses an unmerged plan)
+- [ ] First real `--apply` against `dev-scratch`. Untested against real Bulk output: `sf data upsert bulk --json` job-id shape (parsed tolerantly), relationship column header `Account.External_Id__c`
+- [ ] Second `--apply` creates 0 records (idempotency on the real org)
+- Not built: rollback (the `Source_System__c = 'AcquiredCo'` tag keeps it possible), loads to anything but scratch orgs, volume tuning
 
 ## Known tradeoffs
 - `@salesforce/mcp` reached end of life on 2026-11-02. It is pinned and still installs. Production would use Salesforce's hosted MCP servers with per-user OAuth.
