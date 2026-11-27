@@ -51,10 +51,14 @@ class EvalGateTest(unittest.TestCase):
         self.assertEqual(r["failures"], [])
         self.assertEqual(r["mappings"]["correct"], r["mappings"]["total"])
 
-    def test_weak_first_run_fails_only_on_data_quality(self):
+    def test_weak_first_run_fails_on_data_quality_and_on_the_dropped_tier(self):
         r = self.run_eval(self.weak)
-        self.assertEqual(len(r["failures"]), 8)
-        self.assertTrue(all(f.startswith("data quality") for f in r["failures"]))
+        dq = [f for f in r["failures"] if f.startswith("data quality")]
+        self.assertEqual(len(dq), 8)
+        # it predates Customer_Tier__c, so it maps tier to no field: now a confident wrong mapping that silently drops data
+        other = [f for f in r["failures"] if not f.startswith("data quality")]
+        self.assertEqual(len(other), 1)
+        self.assertIn("accounts.tier", other[0])
 
     # --- mapping gates
     def test_confident_wrong_mapping_fails_even_when_accuracy_is_high(self):
@@ -128,8 +132,10 @@ class EvalGateTest(unittest.TestCase):
         missing = self.cli(str(FIX / "baseline_plan.json"), "--truth", "/nonexistent/truth.json")
         self.assertNotEqual(missing.returncode, 0)
         self.assertIn("generate.py", missing.stderr)
+        self.assertEqual(self.cli(str(FIX / "baseline_plan.json"), "--mappings-only").returncode, 0)
         mo = self.cli(str(FIX / "weak_plan.json"), "--mappings-only")
-        self.assertEqual(mo.returncode, 0)  # the weak run's mappings were fine
+        self.assertEqual(mo.returncode, 1)  # its tier mapping predates Customer_Tier__c
+        self.assertIn("accounts.tier", mo.stdout)
 
 
 if __name__ == "__main__":

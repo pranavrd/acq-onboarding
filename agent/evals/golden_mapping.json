@@ -4,7 +4,7 @@
     {"source": "accounts.acq_account_id",     "accept": ["Account.External_Id__c"]},
     {"source": "accounts.company_name",       "accept": ["Account.Name"]},
     {"source": "accounts.industry",           "accept": ["Account.Industry"]},
-    {"source": "accounts.tier",               "accept": [null], "note": "The org has no tier field; proposing one under proposed_new_fields is right, mapping to an existing field is wrong."},
+    {"source": "accounts.tier",               "accept": ["Account.Customer_Tier__c"], "note": "Since Nov 27 the org has Customer_Tier__c (Text 40) for the raw tier. Plans made before that mapped tier to no field, which now silently drops the data."},
     {"source": "accounts.website",            "accept": ["Account.Website"]},
     {"source": "accounts.billing_city",       "accept": ["Account.BillingCity"]},
     {"source": "accounts.billing_country",    "accept": ["Account.BillingCountry"]},

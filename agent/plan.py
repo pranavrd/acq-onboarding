@@ -37,7 +37,7 @@ Org: use the org alias given in the user message. Use run_soql_query to read it.
   - Allowed values of a picklist (verify before mapping to one; never guess a value):
     SELECT Value FROM PicklistValueInfo WHERE EntityParticle.EntityDefinition.QualifiedApiName = 'Case' AND EntityParticle.QualifiedApiName = 'Status'
     Do this for every picklist you map to: Case Status, Account Industry, Source_System__c. (FieldDefinition has no IsCustom column and does not support COUNT.)
-The org already has External_Id__c and Source_System__c on Account, Contact and Case, and Source_Priority__c on Case. It has no field for customer tier.
+The org already has External_Id__c and Source_System__c on Account, Contact and Case, and Source_Priority__c on Case. Account.Customer_Tier__c (Text 40) holds the raw customer tier from the acquired company.
 Case Priority must end up as High, Medium or Low (a trigger normalizes Source_Priority__c). Unknown priorities default to Medium and must be flagged.
 
 Do this, in order:
