@@ -47,10 +47,11 @@ Decisions are in `DECISIONS.md`. Re-planned after `Customer_Tier__c` existed (ne
 - [x] `agent/load_rules.py`: pure transform. Fail-closed: a plan that maps a column to a field the executor has no rule for is refused. Every row ends up loaded, merged into Core, or rejected with a reason; no loaded row can point at a rejected parent (tested against the seeded data)
 - [x] `agent/execute.py`: dry run by default, `--apply` to write. Gates before any write: plan is on `origin/main` and equals the local copy; org is a scratch org (prod and the Dev Hub refused, verified against the real org list); every target field exists and is visible (verified against the real `dev-scratch`). Parents first, a failed parent stops the children, every step is audited, a reconciliation report is written
 - [x] Reconciliation verifies against the org itself, not just the job results: counts per object tagged `AcquiredCo`, children re-parented to Core, no `AcquiredCo` case without a Priority (proves the trigger fired)
-- [x] 69 offline tests, including a stateful fake Salesforce: apply, second run creates 0 and updates all, gates refuse before any write, failed parents stop the run, a trigger that did not fire is caught
-- [ ] Dry run against the real plan (blocked until PR #8 merges; the gate correctly refuses an unmerged plan)
-- [ ] First real `--apply` against `dev-scratch`. Untested against real Bulk output: `sf data upsert bulk --json` job-id shape (parsed tolerantly), relationship column header `Account.External_Id__c`
-- [ ] Second `--apply` creates 0 records (idempotency on the real org)
+- [x] 72 offline tests, including a stateful fake Salesforce: apply, second run creates 0 and updates all, gates refuse before any write, failed parents stop the run, a trigger that did not fire is caught
+- [x] Dry run against the real plan (`6a34d427a9a4`, merged): 462 accounts load, 23 merge into Core, 956 contacts, 753 cases, 106 rows rejected with reasons. Wrote nothing
+- [x] Real `--apply` against `dev-scratch` (Nov 27). The job-id parsing and the `Account.External_Id__c` relationship header both worked on real Bulk output. Found that the org's own **Contact duplicate rule** rejects 8 contacts (`DUPLICATES_DETECTED`; the synthetic names come from only 400 combinations). Reported as rejected by the org, never bypassed
+- [x] Real run 2 created the 753 cases; real run 3 **created 0 records** and updated 462 accounts, 948 contacts and 753 cases (idempotent on the real org). All 6 checks verified in the org on both: counts tagged `AcquiredCo`, 56 contacts and 44 cases re-parented to Core, no case without a Priority. Spot-checks: the 7 unrecognized priorities landed as Medium, case statuses are only New/Working/Escalated, all 50 Core accounts untouched
+- [x] Design fix from that run: only a rejected *account* stops the run (contacts and cases have no children); rows the org rejects are reported and the expected counts exclude them
 - Not built: rollback (the `Source_System__c = 'AcquiredCo'` tag keeps it possible), loads to anything but scratch orgs, volume tuning
 
 ## Known tradeoffs
@@ -63,5 +64,6 @@ Decisions are in `DECISIONS.md`. Re-planned after `Customer_Tier__c` existed (ne
 - Classic branch protection API returns 404 for rulesets; use `/rules/branches/main`.
 - Metadata-deployed custom fields have no field-level security for anyone until a permission set grants it. Describe, SOQL and Bulk upsert hide them (error: "does not match an External ID"), while Apex tests still pass because Apex runs in system mode. After creating a scratch org run `sf org assign permset --name Acquisition_Onboarding --target-org dev-scratch`.
 - Bulk API wants LF line endings; Python's `csv` writes CRLF unless `lineterminator="\n"`.
+- The org's own duplicate rules apply to Bulk loads: `DUPLICATES_DETECTED` rejects individual rows. Report them; do not bypass an org's governance. A rejected parent must stop its children, a rejected leaf must not stop anything.
 
 Only claim what is checked off.

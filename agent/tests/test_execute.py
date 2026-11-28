@@ -250,6 +250,46 @@ class ExecuteTest(unittest.TestCase):
         self.assertIn("STOPPED", md)
         self.assertIn("children were not loaded", js["stopped"])
 
+    # ---- rows the org itself rejects (duplicate rules, validation): reported, never bypassed, never fatal
+    def loaded_rows(self):
+        from load_rules import read_exports, transform
+        a, c, k = read_exports(self.out)
+        return transform(self.plan, a, c, k)["rows"]
+
+    def test_org_rejected_contacts_do_not_stop_cases_and_still_reconcile(self):
+        rows = self.loaded_rows()
+        victims = [rows["contacts"][0]["External_Id__c"], rows["contacts"][5]["External_Id__c"]]
+        org = self.org(fail_ids=victims)
+        self.assertEqual(self.go(org, apply=True), 0)
+        self.assertEqual(org.upserts(), ["Account", "Contact", "Case"])  # cases still loaded
+        _, md, js = self.last_report()
+        self.assertIn("Rejected by the org itself", md)
+        self.assertEqual(sorted(js["loads"]["contacts"]["failed_ids"]), sorted(victims))
+        self.assertTrue(all(c["ok"] for c in js["checks"]), js["checks"])
+        got = {c["check"]: c["expected"] for c in js["checks"]}
+        self.assertEqual(got["contacts in org tagged AcquiredCo"], len(rows["contacts"]) - 2)
+
+    def test_a_rejected_reparented_contact_lowers_the_expected_reparent_count(self):
+        rows = self.loaded_rows()
+        victim = next(o["External_Id__c"] for o in rows["contacts"] if o["Account.External_Id__c"].startswith("CORE-"))
+        org = self.org(fail_ids=[victim])
+        self.assertEqual(self.go(org, apply=True), 0)
+        _, _, js = self.last_report()
+        by = {c["check"]: c for c in js["checks"]}
+        full = sum(1 for o in rows["contacts"] if o["Account.External_Id__c"].startswith("CORE-"))
+        self.assertEqual(by["contacts re-parented to Core accounts"]["expected"], full - 1)
+        self.assertTrue(by["contacts re-parented to Core accounts"]["ok"])
+
+    def test_second_run_repeats_the_org_rejections_and_still_creates_nothing(self):
+        rows = self.loaded_rows()
+        org = self.org(fail_ids=[rows["contacts"][0]["External_Id__c"]])
+        self.go(org, apply=True)
+        self.assertEqual(self.go(org, apply=True), 0)
+        second = self.last_report()[2]["loads"]
+        self.assertEqual(second["contacts"]["created"], 0)
+        self.assertEqual(second["contacts"]["failed"], 1)
+        self.assertEqual(second["contacts"]["updated"], len(rows["contacts"]) - 1)
+
     def test_verification_catches_a_trigger_that_did_not_fire(self):
         org = self.org(break_trigger=True)
         self.assertEqual(self.go(org, apply=True), 1)

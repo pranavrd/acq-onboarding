@@ -151,7 +151,9 @@ def load_object(sf, org, sobject, file, workdir):
         failures = [{"id": r.get("External_Id__c", ""), "error": r.get("sf__Error", "")}
                     for r in _read_csv(Path(workdir) / results["failedFilePath"])]
     return {"job_id": job, "processed": results.get("processedRecords"), "created": created, "updated": updated,
-            "failed": len(failures) or results.get("failedRecords") or 0, "failures": failures[:20]}
+            "failed": len(failures) or results.get("failedRecords") or 0, "failures": failures[:20],
+            "failed_ids": [x["id"] for x in failures],
+            "error_counts": dict(Counter(x["error"].split(":")[0] for x in failures))}
 
 
 def _count(sf, org, soql):
@@ -160,15 +162,23 @@ def _count(sf, org, soql):
     return next(v for k, v in row.items() if k != "attributes")
 
 
-def verify(sf, org, result):
-    """Evidence from the org itself, not from the job results."""
+def verify(sf, org, result, failed_ids=None):
+    """Evidence from the org itself, not from the job results.
+
+    Expected counts are the rows we sent minus the rows the org itself rejected (duplicate rules, validation),
+    so an org-side rejection is reported, not mistaken for a loss.
+    """
+    failed_ids = failed_ids or {}
     rows, merged = result["rows"], result["merged"]
-    q = [("accounts in org tagged AcquiredCo", len(rows["accounts"]), "SELECT COUNT(Id) n FROM Account WHERE Source_System__c = 'AcquiredCo'"),
-         ("contacts in org tagged AcquiredCo", len(rows["contacts"]), "SELECT COUNT(Id) n FROM Contact WHERE Source_System__c = 'AcquiredCo'"),
-         ("cases in org tagged AcquiredCo", len(rows["cases"]), "SELECT COUNT(Id) n FROM Case WHERE Source_System__c = 'AcquiredCo'"),
-         ("contacts re-parented to Core accounts", merged["contacts_reparented"],
+    ok_rows = {f: [o for o in rows[f] if o["External_Id__c"] not in set(failed_ids.get(f, []))] for f in FILES}
+    core = set(merged["accounts"].values())
+    reparented = {f: sum(1 for o in ok_rows[f] if o["Account.External_Id__c"] in core) for f in ("contacts", "cases")}
+    q = [("accounts in org tagged AcquiredCo", len(ok_rows["accounts"]), "SELECT COUNT(Id) n FROM Account WHERE Source_System__c = 'AcquiredCo'"),
+         ("contacts in org tagged AcquiredCo", len(ok_rows["contacts"]), "SELECT COUNT(Id) n FROM Contact WHERE Source_System__c = 'AcquiredCo'"),
+         ("cases in org tagged AcquiredCo", len(ok_rows["cases"]), "SELECT COUNT(Id) n FROM Case WHERE Source_System__c = 'AcquiredCo'"),
+         ("contacts re-parented to Core accounts", reparented["contacts"],
           "SELECT COUNT(Id) n FROM Contact WHERE Source_System__c = 'AcquiredCo' AND Account.Source_System__c = 'Core'"),
-         ("cases re-parented to Core accounts", merged["cases_reparented"],
+         ("cases re-parented to Core accounts", reparented["cases"],
           "SELECT COUNT(Id) n FROM Case WHERE Source_System__c = 'AcquiredCo' AND Account.Source_System__c = 'Core'"),
          ("AcquiredCo cases without a Priority (trigger fired on all)", 0,
           "SELECT COUNT(Id) n FROM Case WHERE Source_System__c = 'AcquiredCo' AND Priority = null")]
@@ -199,7 +209,12 @@ def render_report(exec_id, plan_id, org, mode, result, loads, checks, stopped=No
     L += ["", f"Merged accounts were not inserted; {m['contacts_reparented']} contacts and {m['cases_reparented']} cases "
           f"were re-parented to the existing Core account. Core accounts were not modified.", "", "## Rejected rows (nothing partial lands silently)", ""]
     for (file, reason), ids in sorted(_by_reason(result["rejected"]).items()):
-        L.append(f"- `{file}` {reason}: **{len(ids)}** (e.g. {', '.join(ids[:5])})")
+        L.append(f"- `{file}` {reason}: **{len(ids)} rows** (e.g. {', '.join(list(dict.fromkeys(ids))[:5])})")
+    org_failed = {f: ld for f, ld in loads.items() if ld["failed"]}
+    if org_failed:
+        L += ["", "## Rejected by the org itself (its own duplicate and validation rules; not bypassed)", ""]
+        for f, ld in org_failed.items():
+            L.append(f"- {OBJECT[f]}: **{ld['failed']} rows**, {ld['error_counts']} (e.g. {', '.join(ld['failed_ids'][:5])})")
     L += ["", "## Loaded with a warning", ""]
     wc = Counter((w["file"], w["warning"].split(": ", 1)[-1]) for w in result["warnings"])
     L += [f"- `{f}` {w}: **{n}**" for (f, w), n in sorted(wc.items())] or ["None."]
@@ -267,16 +282,22 @@ def _execute(audit, plan_dir, org, repo_root, apply, input_dir, load_dir, report
         loads[f] = ld
         step("load", f"{OBJECT[f]} job {ld['job_id']}: created {ld['created']}, updated {ld['updated']}, failed {ld['failed']}",
              "ok" if not ld["failed"] else "failed rows")
-        if ld["failed"] and f != "cases":
+        # Only accounts have children (contacts and cases point at them). A rejected contact or case blocks nothing
+        # else, so it is reported and the run continues; a rejected account stops the run before its children.
+        if ld["failed"] and f == "accounts":
             stopped = f"{OBJECT[f]} had {ld['failed']} failed row(s); children were not loaded"
             break
-    checks = [] if stopped else verify(sf, org, result)
-    ok = not stopped and all(c["ok"] for c in checks) and not any(ld["failed"] for ld in loads.values())
+    failed_ids = {f: ld["failed_ids"] for f, ld in loads.items()}
+    checks = [] if stopped else verify(sf, org, result, failed_ids)
+    # Rows the org itself rejected are accounted for in the report, so they do not make the run fail to reconcile.
+    ok = not stopped and all(c["ok"] for c in checks)
     text = render_report(exec_id, plan_id, org, "APPLIED", result, loads, checks, stopped)
     (out_dir / "reconciliation.md").write_text(text)
     (out_dir / "reconciliation.json").write_text(json.dumps({"exec_id": exec_id, "plan": plan_id, "org": org, "loads": loads,
                                                               "checks": checks, "stopped": stopped}, indent=2))
-    step("done", "reconciles" if ok else "DOES NOT RECONCILE", "ok" if ok else "mismatch")
+    n_org = sum(ld["failed"] for ld in loads.values())
+    step("done", ("reconciles" if ok else "DOES NOT RECONCILE") + (f"; {n_org} rows rejected by the org" if n_org else ""),
+         "ok" if ok else "mismatch")
     print(text)
     return 0 if ok else 1
 
